@@ -1,0 +1,73 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - '**'
+  push:
+    branches:
+      - 'main'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: MobileApp
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    name: Lint, Test, Build
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-gradle
+        with:
+          gradle-cache-encryption-key: ${{ secrets.GRADLE_CACHE_ENCRYPTION_KEY }}
+
+      # Keys come from local.properties.example, so adding one there needs no
+      # workflow edit. These checks never ship a binary, so empty values are
+      # fine — on pull requests from forks no secrets are available at all and
+      # every getRequiredProperty() falls back to its default.
+      - name: Write secrets to local.properties
+        env:
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+        run: |
+          set -euo pipefail
+          keys=$(sed -n 's/^\([A-Z][A-Z0-9_]*\)=.*/\1/p' local.properties.example)
+          [ -n "$keys" ] || { echo "No keys found in local.properties.example"; exit 1; }
+          for key in $keys; do
+            value=$(printf '%s' "$ALL_SECRETS" | jq -r --arg k "$key" '.[$k] // ""')
+            printf '%s=%s\n' "$key" "$value" >> local.properties
+          done
+
+      - name: Spotless check (ktlint)
+        run: ./gradlew spotlessCheck
+
+      - name: Run shared module tests
+        run: ./gradlew :shared:jvmTest :shared:testAndroidHostTest
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            MobileApp/shared/build/reports/tests/
+            MobileApp/shared/build/test-results/
+          retention-days: 7
+
+      - name: Build Android debug APK
+        run: ./gradlew :androidApp:assembleDebug
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          retention-days: 7
+          path: MobileApp/androidApp/build/outputs/apk/debug/**.apk

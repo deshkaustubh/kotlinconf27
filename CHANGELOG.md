@@ -1,0 +1,180 @@
+# Changelog
+
+Template release notes, written for **derived apps syncing updates** (see
+[`skills/sync-template/SKILL.md`](skills/sync-template/SKILL.md)). Newest first.
+
+Entry format — one bullet per merged PR, tagged by scope:
+
+- `[app]` touches shipped app code (`MobileApp/`, `Web/`) — a sync will merge it into your app.
+- `[skills]` / `[docs]` agent skills, AGENTS.md, guides — merges cleanly unless you edited them.
+- **Manual:** anything a derived app must do by hand after the merge.
+
+Entries start with the first template change after the sync tooling landed — group them under a
+`## <year>-<month>-<date>` heading, newest first.
+
+## 2026-09-04
+
+- `[app]` **WorkManager survives R8** (#59): release builds crashed at launch with
+  `Failed to create an instance of androidx.work.impl.WorkDatabase`. The keep rule added in #55
+  covers `androidx.room3.RoomDatabase`, the namespace the app's own database uses, but AdMob pulls in
+  `androidx.work:work-runtime`, whose `WorkDatabase` extends the Room 2.x
+  `androidx.room.RoomDatabase`. That is a different hierarchy as far as R8 is concerned, so its
+  no-arg constructor was stripped.
+  `proguard-rules.pro` now keeps both namespaces. Release only: debug builds and tests never hit it.
+  **Manual:** none, unless you replaced `proguard-rules.pro`, in which case copy the new rule across.
+
+## 2026-08-26
+
+- `[app]` **Date formatting uses the kotlinx-datetime API** (#58): `asFormattedDate` built its output
+  by string-replacing `dd`, `MM` and `yyyy` inside a pattern, so a typo like `"ddd-MM-yyy"` silently
+  produced garbage. It now takes a `DateTimeFormat<LocalDate>` built with `LocalDate.Format { }`, and
+  the tests that guarded the old string handling are gone — formatting is the library's job.
+  **Manual:** the `format` parameter changed type. `asFormattedDate(format = "yyyy-MM-dd")` becomes
+  `asFormattedDate(format = LocalDate.Format { year(); char('-'); monthNumber(); char('-'); day() })`.
+  Callers using the default are unaffected.
+- `[app]` **The adaptive launcher icon actually applies** (#58): `mipmap-anydpi-v26/` never existed,
+  so Android had no adaptive descriptor to read and every launcher fell back to the legacy
+  `ic_launcher.webp` bitmap on API 26+, shrunk and badged. `ic_launcher_foreground`,
+  `ic_launcher_round` and `@color/ic_launcher_background` sat unreferenced as a result. The two
+  descriptors now exist, they declare a `<monochrome>` layer so themed icons work on Android 13+,
+  and the manifest sets `android:roundIcon`. `drawable/ic_launcher_foreground.xml` is deleted: it was
+  a second copy of the logo that nothing pointed at, and the descriptors reference the webp set that
+  the Image Asset flow regenerates. **Manual:** if you already rebranded, redraw
+  `androidApp/src/main/res/drawable/ic_launcher_monochrome.xml` as a single flat path of your own
+  logo — the system tints it and ignores its colour, so gradients do not survive. Leaving the Kotlin
+  K there means your themed icon shows the wrong mark.
+- `[app]` **Leftover branding removed from the paywall modal** (#58): `PremiumPaywallModal` shipped
+  another product's copy — the headline read "Get More From ClipUGC" and all four benefits described
+  UGC videos and AI influencers. Title, description, benefit list and the dismiss button are now
+  parameters with product-neutral defaults, matching how `priceText` and `ctaBtnText` already worked.
+  `getPremiumBenefits()` is now `internal fun defaultPremiumBenefits()`. `kappmaker.com` URLs in one
+  `@Preview` and two KDoc examples are now `example.com`. **Manual:** none — the new parameters have
+  defaults, so existing call sites compile unchanged.
+- `[app]` **Inspection cleanup across the source tree** (#58): Android Studio's inspections reported
+  roughly 4000 findings, nearly all of them inside `build/` output. The real ones are fixed: 19 unused
+  imports, `delay(2000L)`-style calls converted to `Duration`, four constructor `private val`s that
+  are read once demoted to plain parameters, three if-null returns folded to elvis plus one variable
+  moved into `when` in `AdaptySubscriptionProvider`, lambdas moved out of parentheses, two `const val`
+  promotions, a redundant SAM constructor, an empty class body and an explicit `get` call. Unused
+  destructured names became `_`. The unused `compose-components-uiToolingPreview` catalog alias is
+  gone. **Manual:** none. Generated sources, expect/actual signatures, Swift entry points and the
+  `AppConfiguration` feature flags were deliberately left alone — simplifying those booleans would
+  delete the gating they exist for.
+- `[app]` **iOS splash logo is scale-aware** (#58): `ic_logo.imageset` held one universal image with
+  no scale, and a launch image is drawn centred at its **point** size rather than scaled to fit. That
+  made pixels equal points, so replacing the logo with a 512 px file rendered it at 512 pt — wider
+  than any iPhone — and it overflowed the screen. The set now has proper `1x` / `2x` / `3x` slots at
+  120 / 240 / 360 px, giving a 120 pt logo, and the artwork is transparent so it works over the splash
+  background in dark mode too. **Manual:** if you rebranded, regenerate all three files at those
+  sizes instead of copying your full-size logo in, and leave `Contents.json` alone.
+- `[skills]` **`generate-app-icons` matches reality** (#58): the skill told agents the
+  `mipmap-anydpi-v26/` descriptors were already present and to leave them as-is, while they did not
+  exist. It now documents the monochrome layer alongside them and explains that it must stay one flat
+  shape, redrawn per rebrand. It also states the iOS splash logo sizing that nothing documented
+  before — the point-size rule, the three scale slots, resize commands, and a validation step — which
+  is what let full-size logos end up on the launch screen. `AGENTS.md` carries the same note.
+- `[docs]` **Favicon transparency and the getting-started clone step** (#58): the docs favicon had an
+  opaque white notch instead of a transparent one, so it read wrong on dark browser tabs; it is
+  regenerated from the official Kotlin icon with alpha. "Fork or clone the repository" now names a
+  single default — fork, then clone your fork — and spells out the trade-offs of *Use this template*
+  and a plain clone, including how to repoint `origin` if you clone directly. Also fixed a broken
+  anchor in the Firebase integration page.
+
+## 2026-08-21
+
+- `[app]` **Dependency bumps across the board** (#55): Kotlin 2.4.0 → 2.4.10, KSP 2.3.9 → 2.3.11,
+  Ktor 3.5.0 → 3.5.2, Koin 4.2.1 → 4.2.2, kotlinx-datetime 0.7.1 → 0.8.0, RevenueCat 3.0.6 → 3.5.1,
+  Roborazzi 1.64.0 → 1.72.0, Spotless 8.6.0 → 8.10.0, Firebase BOM 34.17.0 → 34.18.0, AdMob
+  25.3.0 → 25.4.0, FileKit 0.14.1 → 0.15.0, DataStore 1.3.0-alpha09 → alpha10, plus the AndroidX
+  and Compose lifecycle/activity/test artifacts. Manual: `kotlinx-datetime` 0.8.0 deprecates
+  `dayOfMonth` and `monthNumber` — use `day` and `month.number` (the latter is an extension, so add
+  `import kotlinx.datetime.number`). FileKit's `openFileSaver(extension = …)` is now
+  `defaultExtension = …`.
+- `[app]` **Room and SQLite leave the alpha train** (#55): Room 3.0.0-alpha06 → **3.0.1** and
+  androidx.sqlite 2.7.0-alpha06 → **2.7.0**, both now stable. They stay coupled, so bump them
+  together. Manual: none — no schema or API change.
+- `[app]` **Room survives R8 in release builds** (#55): release builds are minified, and Room looks
+  up its generated `AppDatabase_Impl` by name at runtime. `androidApp/proguard-rules.pro` now keeps
+  it with `-keep class * extends androidx.room3.RoomDatabase { <init>(); }`, the rule Google's Room
+  KMP guide requires. Without it debug works and the release build crashes on first database access.
+  Manual: if you already shipped a minified release, add the same rule.
+- `[app]` **AGP 9.2.0 → 9.3.1, Gradle 9.4.1 → 9.7.1** (#55): Android Studio flagged the AGP version as
+  out of date. AGP 9.3.1 requires Gradle 9.5.0 or newer, so the wrapper moves too, to the current
+  stable 9.7.1. Gradle 9.6 deprecated the `by getting` delegate, used for the build types in
+  `androidApp/build.gradle.kts` and for three source sets in `shared/build.gradle.kts`; those now use
+  `getByName(...)`, so the build reports no Gradle deprecations. Manual: none — the wrapper pulls
+  the new distribution on first run.
+
+## 2026-08-17
+
+- `[app]` **Info.plist declares orientations and export compliance** (#53): the target builds for
+  iPhone and iPad but declared no orientations, so App Store Connect rejects the upload with
+  ITMS-90474. All four orientations are now declared for both device families.
+  `ITSAppUsesNonExemptEncryption=false` answers the export-compliance question once instead of on
+  every upload. Manual: nothing, unless you ship non-exempt cryptography — then set it `true`.
+- `[app]` **Only the permission modules the app uses are linked** (#52): the kit depended on Calf's
+  umbrella `calf-permissions` artifact, which links every permission API — location, bluetooth,
+  contacts and the rest. App Store review scans for those symbols, so uploads came back with
+  **ITMS-90683: Missing purpose string in Info.plist** demanding `NSLocationWhenInUseUsageDescription`
+  for a permission the app never requests. Calf 0.12.0 → 0.13.0 and the dependency is now
+  `calf-permissions-core` plus one module per permission actually used: camera, gallery,
+  notifications. Manual: `rememberLocationPermissionState()` and `rememberMicrophonePermissionState()`
+  are gone — if you used them, add `calf-permissions-location` / `-microphone` in
+  `libs.versions.toml` and `shared/build.gradle.kts` and call
+  `rememberAppPermissionState(Permission.FineLocation)` instead. Do not switch back to the umbrella
+  module.
+
+## 2026-08-16
+
+- `[app]` **iOS publishing works without a Mac** (#48): the iOS publish workflow had never run on a
+  generated app — it wanted a hand-exported `.p12`, which needs the Mac the workflow exists to avoid.
+  Signing now goes through fastlane `match`, which creates the certificate on the runner from the App
+  Store Connect API key and stores it in a **private certificates repo shared across your Apple
+  account**. It is a separate repo on purpose: a distribution certificate belongs to the account and
+  Apple issues at most two, so storing them per app exhausts the account almost immediately. Releases
+  run `match` read-only so no build can mint one. Archive and export also disagreed about signing
+  style, and signing settings had to move per target because Swift Package dependencies reject a
+  provisioning profile; the workflow now drives the project's own Fastfile instead of a parallel
+  xcodebuild. Manual: set `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` (the
+  **base64** of the `.p8`, not its raw contents), `MATCH_PASSWORD`, `MATCH_GIT_URL` and
+  `MATCH_GIT_BASIC_AUTHORIZATION` (base64 of `x-access-token:<PAT>` with access to the certs repo).
+  `IOS_APP_CERTIFICATE_P12_BASE64`, `APPSTORE_TEAM_ID` and the provisioning-profile UUIDs are no
+  longer used — delete them.
+- `[app]` **Android releases and PR checks write every build key** (#48): both workflows wrote the same
+  stale three-key `local.properties` block, two of which the build no longer reads, so Play Store
+  releases shipped with placeholder sign-in, ads, AI and paywall exactly like iOS did. All three
+  workflows now derive the key list from `MobileApp/local.properties.example`, so adding a key there
+  needs no workflow edit. Manual: set a repo secret for each key you use — the release workflows warn
+  about any that are missing.
+- `[docs]` **Publishing docs match the new secrets** (#48): `setup-signing`, the `publishing` guide and
+  its progress template, the docs-site CI page and the iOS production page all still described the
+  hand-exported `.p12` flow and two RevenueCat keys the build no longer reads. They now list the six
+  iOS secrets that exist and where each value comes from, explain why the certificates repo is shared
+  across the account, and state the rule the workflows rely on: every key in
+  `local.properties.example` needs a repo secret of the same name.
+- `[app]` **The certificate-store bootstrap is actually reachable** (#49): populating an empty
+  certificates repo needs `match` to run with write access exactly once, and that escape hatch never
+  worked. The workflow did not forward `MATCH_READONLY` into the build step, and the lane read it
+  *after* fastlane's `setup_ci`, which sets `MATCH_READONLY=true` itself — so the log printed `false`
+  while match still refused with "cannot create a new one because you enabled `readonly`". The value
+  is now read before `setup_ci`, passed to match explicitly, and sourced from a repository
+  **variable**, since a secret valued `false` masks that word throughout the log. Manual: bootstrap an
+  empty certs repo with `gh variable set MATCH_READONLY --body false`, run the release once, then
+  `gh variable delete MATCH_READONLY`. `match` is also pinned to the `main` branch of the certs repo:
+  it defaults to `master`, which would leave the certificate on a second branch of a repo whose
+  default is `main`.
+
+## 2026-08-14
+
+- `[app]` **Aligned Firebase library versions** (#47): KMPAuth 3.0.3 → 3.0.5, KMPNotifier 2.0.0 → 2.0.1,
+  Firebase BOM 34.14.1 → 34.17.0. KMPNotifier now declares firebase-ios-sdk as a range instead of an
+  exact pin, and KMPAuth moved to GitLive firebase 3.0.0-alpha01, so the three no longer fight over
+  firebase-ios-sdk on iOS. Manual: the iOS project pin moves 12.14.0 → **12.17.0** (the new floor) and
+  the linkage package is regenerated — in Xcode run Reset Package Caches → Resolve Package Versions
+  after pulling. Also fixes offline Google sign-in on Android.
+- `[app]` **Web builds work with the configuration cache again** (#47): the `commonWebpackConfig { }`
+  block in `webApp/build.gradle.kts` is a Gradle script object reference and cannot be serialized, so
+  every `:webApp:wasmJs*` task failed once the configuration cache was enabled. The dev-server
+  settings (the AI CORS proxies for OpenAI, Replicate and replicate.delivery) moved to
+  `webApp/webpack.config.d/dev-server-proxy.js`. Manual: none, unless you added your own
+  `commonWebpackConfig` block — move it to `webpack.config.d/` too.
