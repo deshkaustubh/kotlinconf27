@@ -14,11 +14,11 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "com.kotlinfoundation.koko.MainKt"
+        mainClass = "tech.kaustubhdeshpande.kotlinconf27.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.kotlinfoundation.koko"
+            packageName = "tech.kaustubhdeshpande.kotlinconf27"
             packageVersion = "1.0.0"
         }
     }

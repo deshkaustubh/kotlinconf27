@@ -6,7 +6,7 @@ plugins {
 
 kotlin {
     android {
-        namespace = "com.kotlinfoundation.koko.subscription.api"
+        namespace = "tech.kaustubhdeshpande.kotlinconf27.subscription.api"
     }
 
     sourceSets {

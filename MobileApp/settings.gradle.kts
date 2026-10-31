@@ -1,4 +1,4 @@
-rootProject.name = "Koko"
+rootProject.name = "KotlinConf27"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
